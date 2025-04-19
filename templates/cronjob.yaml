@@ -1,0 +1,53 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- range $realmName, $realm := .Values.realm }}
+{{- with $ }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-janitor-cleanup-{{ $realmName }}
+  {{- if .Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+    {{- with .Values.job.janitor.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  schedule: {{ .Values.job.janitor.schedule }}
+  successfulJobsHistoryLimit: 0
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          imagePullSecrets:
+            - name: eni-pull-mtr-devops-tardis-internal-secret
+          securityContext:
+            {{- toYaml .Values.deployment.securityContext.pod | nindent 12 }}
+          containers:
+            - name: {{ .Release.Name }}-janitor
+              securityContext:
+                {{- toYaml .Values.deployment.securityContext.container | nindent 16 }}
+              image: "{{ include "imageRef" .Values.component.hydra.image }}"
+              imagePullPolicy: {{ .Values.component.hydra.image.pullPolicy }}
+              command:
+                - "hydra"
+              args:
+                - "janitor"
+                - "$(DSN)"
+                - "--keep-if-younger"
+                - "24h"
+                - "--tokens"
+                - "--requests"
+                - "--network"
+                - "$(NETWORK)"
+              env:
+                - name: DSN
+                  value: {{ .Values.component.hydra.config.dsn | quote }}
+                - name: NETWORK
+                  value: {{ $realm.nid | quote }}
+          restartPolicy: OnFailure
+---
+{{- end }}
+{{- end }}

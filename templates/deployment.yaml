@@ -1,0 +1,225 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- range $realmName, $realm := .Values.realm }}
+{{- with $ }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "iris.fullname" . }}-{{ $realmName }}
+  {{- if .Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+{{ include "iris.labels" . | indent 4 }}
+    {{- with .Values.deployment.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+  annotations:
+    {{- with .Values.deployment.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+{{- if not $realm.autoscaling.enabled }}
+  replicas: {{ $realm.replicaCount }}
+{{- end }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 50%
+      maxUnavailable: 50%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "iris.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      iris.realm: {{ $realmName }}
+  template:
+    metadata:
+      labels:
+        iris.realm: {{ $realmName }}
+{{ include "iris.labels" . | indent 8 }}
+        {{- with .Values.deployment.labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.deployment.annotations }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: cache-volume
+          emptyDir: {}
+        - name: {{ include "iris.name" . }}-config-volume
+          configMap:
+            name: {{ include "iris.fullname" . }}
+        {{- if .Values.deployment.extraVolumes }}
+{{ toYaml .Values.deployment.extraVolumes | indent 8 }}
+        {{- end }}
+      serviceAccountName: {{ include "iris.serviceAccountName" . }} # check if works without
+      automountServiceAccountToken: {{ .Values.deployment.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.deployment.securityContext.pod | nindent 8 }}
+      containers:
+        - name: {{ .Release.Name }}-hydra
+          image: "{{ include "imageRef" .Values.component.hydra.image }}"
+          imagePullPolicy: {{ .Values.component.hydra.image.pullPolicy }}
+          command: ["hydra"]
+          volumeMounts:
+            - name: {{ include "iris.name" . }}-config-volume
+              mountPath: /etc/config
+              readOnly: "true"
+            {{- if .Values.deployment.extraVolumeMounts }}
+{{ toYaml .Values.deployment.extraVolumeMounts | indent 12 }}
+            {{- end }}
+          args: [
+            "serve",
+            "all",
+            {{- if .Values.component.hydra.dev }}
+            "--dev",
+            {{- end}}
+            "--config",
+            "/etc/config/config.yaml"
+          ]
+          ports:
+            - name: http-public
+              containerPort: 4444
+              protocol: TCP
+            - name: http-admin
+              containerPort: 4445
+              protocol: TCP
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sleep", {{ .Values.deployment.preStopSleepTime | quote }} ]
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: http-admin
+            {{- toYaml .Values.deployment.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http-admin
+            {{- toYaml .Values.deployment.readinessProbe | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /health/alive
+              port: http-admin
+            {{- toYaml .Values.deployment.startupProbe | nindent 12 }}
+          env:
+            - name: NETWORK_STRATEGY
+              value: static
+            - name: NETWORK_ID
+              value: {{ $realm.nid }}
+            - name: DSN
+              value: {{ .Values.component.hydra.config.dsn }}
+            - name: SECRETS_SYSTEM
+              value: {{ .Values.component.hydra.config.secrets.system }}
+            - name: SECRETS_COOKIE
+              value: {{ .Values.component.hydra.config.secrets.system | default ( randAlphaNum 32 ) }}
+            {{- if .Values.component.hydra.tracing.enabled }}
+            - name: TRACING_PROVIDER
+              value: {{ .Values.component.hydra.tracing.provider }}
+            - name: TRACING_PROVIDERS_ZIPKIN_SERVER_URL
+              value: {{ .Values.component.hydra.tracing.spanUrl }}
+            - name: TRACING_PROVIDERS_ZIPKIN_SAMPLING_SAMPLING_RATIO
+              value: {{ .Values.component.hydra.tracing.samplingRatio | quote }}
+            - name: TRACING_SERVICE_NAME
+              value: {{ .Release.Name }}-hydra-{{ .Release.Namespace }}
+            {{- end }}
+            - name: URLS_SELF_ISSUER
+              value: {{ .Values.component.hydra.config.urls.self.issuer | quote }}
+            - name: GOGC
+              value: "150"
+          resources:
+            {{- toYaml $realm.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.deployment.securityContext.container | nindent 12 }}
+        {{- if .Values.service.sidecar.enabled }}
+        - name: {{ .Release.Name }}-sidecar
+          image: "{{ include "imageRef" .Values.component.sidecar.image }}"
+          securityContext:
+            {{- toYaml .Values.deployment.securityContext.container | nindent 12 }}
+          env:
+            - name: SIDECAR_PORT
+              value: {{ .Values.service.sidecar.port | quote }}
+            - name: HYDRA_ADMIN_PORT
+              value: {{ .Values.service.admin.port | quote }}
+            - name: TRUSTED_ISSUER
+              value: {{ .Values.component.sidecar.config.trustedIssuer | quote }}
+            - name: JWK_PATH
+              value: {{ .Values.component.sidecar.config.jwkPath | quote }}
+            - name: BASIC_AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-admin
+                  key: HYDRA_ADMIN_USERNAME
+            - name: BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-admin
+                  key: HYDRA_ADMIN_PASSWORD
+          ports:
+            - name: http-sidecar
+              containerPort: {{ .Values.service.sidecar.port | quote }}
+              protocol:  TCP
+          livenessProbe:
+            httpGet:
+              path: /health/alive
+              port: http-sidecar
+            {{- toYaml .Values.deployment.livenessProbe | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http-sidecar
+            {{- toYaml .Values.deployment.readinessProbe | nindent 12 }}
+          imagePullPolicy: {{ .Values.component.sidecar.image.pullPolicy}}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Start hashing password..." && \
+              if [ -z "${BASIC_AUTH_PASSWORD}" ]; then echo "BASIC_AUTH_PASSWORD is not set"; exit 1; fi && \
+              HASHED_PASSWORD=$(caddy hash-password -p "${BASIC_AUTH_PASSWORD}") && \
+              if [ -z "$HASHED_PASSWORD" ]; then echo "Failed to hash password"; exit 1; fi && \
+              export BASIC_AUTH_PASSWORD=$HASHED_PASSWORD && \
+              echo "Password hashing completed"
+              echo "Start Сaddy"
+              exec caddy run --config /etc/caddy/Caddyfile
+          volumeMounts:
+            - name: cache-volume
+              mountPath: /tmp
+        {{- end }}
+        {{- if and .Values.service.tokenHook (hasKey .Values.service.tokenHook "enabled") }}
+        - name: {{ .Release.Name }}-tokenhook
+          securityContext:
+            {{- toYaml .Values.deployment.securityContext.container | nindent 12 }}
+          image: "{{ include "imageRef" .Values.component.tokenHook.image }}"
+          env:
+            - name: TOKEN_HOOK_PORT
+              value: {{ .Values.service.tokenHook.port | quote }}
+            - name: CLAIM_ORIGIN_ZONE
+              value: {{ .Values.component.hydra.customClaims.originZone }}
+            - name: CLAIM_ORIGIN_STARGATE
+              value: {{ .Values.component.hydra.customClaims.originStargate }}
+          ports:
+            - name: http-token-hook
+              containerPort: {{ .Values.service.tokenHook.port | quote }}
+              protocol: TCP
+          imagePullPolicy: {{ .Values.component.tokenHook.image.pullPolicy}}
+        {{- end }}
+      {{- with .Values.deployment.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.deployment.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+---
+      {{- end }}

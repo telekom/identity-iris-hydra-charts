@@ -1,0 +1,48 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- if .Values.deployment.serviceAccount.create -}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "iris.serviceAccountName" . }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+  {{- with .Values.deployment.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+
+{{- if .Values.watcher.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "iris.fullname" . }}-watcher
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["list", "patch", "get", "watch"]
+    resourceNames:
+      - {{ include "iris.fullname" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "iris.fullname" . }}-watcher
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "iris.fullname" . }}-watcher
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "iris.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}
+{{- end }}

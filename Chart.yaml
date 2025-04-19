@@ -1,0 +1,21 @@
+apiVersion: v2
+appVersion: "2.3.0"
+name: iris-hydra
+description: A Helm chart for Iris-Hydra
+type: application
+version: 1.0.0
+keywords:
+  - hydra
+  - oauth2
+  - api-security
+  - security
+  - otip
+  - tardis
+  - iris
+home: https://www.ory.sh/ # to be updated
+sources:
+  - https://github.com/ory/hydra # to be updated
+maintainers:
+  - name: Team Galatea
+    email: DL_DTIT_ENI_Hub_Team_Galatea@telekom.de
+    url: https://wiki.telekom.de/pages/viewpage.action?spaceKey=DHEI&title=Team+Galatea

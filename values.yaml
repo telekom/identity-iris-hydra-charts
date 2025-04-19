@@ -1,0 +1,229 @@
+realm:
+  default:
+    nid: "35d06611-bba2-45e0-b355-6ef4da7b67cd"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 5
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+  rover:
+    nid: "8bb54297-3ce8-45bd-a95c-f672b55f4e62"
+    autoscaling:
+      enabled: false
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    db:
+      options:
+        - key: "max_conns"
+          value: 2
+        - key: "max_idle_conns"
+          value: 1
+  team-default:
+    nid: "f9a50ea3-c4a9-4f8d-be1f-fe9f1e95b4e6"
+    autoscaling:
+      enabled: false
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    db:
+      options:
+        - key: "max_conns"
+          value: 2
+        - key: "max_idle_conns"
+          value: 1
+component:
+  hydra:
+    image:
+      repository: hub.docker.com/r/oryd/hydra
+      pullPolicy: Always
+      tag: v2.3.0-distroless
+    autoMigrate: false
+    dev: false
+    config:
+      urls:
+        self:
+          issuer: https://hydra.dev
+      log:
+        level: info
+        format: json
+        leak_sensitive_values: false
+      dsn: "memory"
+      serve:
+        public:
+          port: 4444
+        admin:
+          port: 4445
+        tls:
+          allow_termination_from:
+          - 127.0.0.1/32
+      secrets:
+        system:
+        - "SECRET"
+      strategies:
+        access_token: jwt
+      ttl:
+        access_token: 90m
+        refresh_token: 8h
+        id_token: 1h
+      oauth2:
+        token_hook:
+          url: "http://localhost:4475"
+      hashers:
+        bcrypt:
+          cost: 4
+      session:
+        encrypt_at_rest: true
+      allowed_top_level_claims:
+        - "azp"
+        - "originStargate"
+        - "originZone"
+    tracing:
+      enabled: false
+      provider: zipkin
+      samplingRatio: 0.1
+      spanUrl: https://zipkin.dev
+      url: http://localhost:4445/admin
+    customClaims:
+      originStargate: https://stargate.dev.url
+      originZone: zone
+  tokenHook:
+    enabled: false
+    image:
+      repository:
+      pullPolicy:
+      tag:
+    config: 
+      url: https://hydra-hook.dev
+  sidecar:
+    enabled: false
+    image:
+      repository:
+      pullPolicy:
+      tag:
+    config:
+      trustedIssuer: https://hydra.dev
+      jwkPath: .well-known/jwks.json
+      basicAuthUsername: user
+      basicAuthPassword: pass
+deployment:
+  securityContext:
+    pod:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      fsGroup: 1000
+      supplementalGroups: [ 1000 ]
+    container:
+      allowPrivilegeEscalation: false
+      privileged: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+  pdb:
+    enabled: false
+    minAvailable: 1
+  labels: { }
+  annotations: { }
+  nodeSelector: { }
+  tolerations: [ ]
+  serviceAccount:
+    create: false
+    annotations: { }
+    name: ""
+  extraVolumes: [ ]
+  extraVolumeMounts: [ ]
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 5
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    failureThreshold: 5
+  startupProbe:
+    initialDelaySeconds: 1
+    periodSeconds: 1
+    failureThreshold: 5
+  preStopSleepTime: 10
+
+  automountServiceAccountToken: true
+
+  extraContainers:
+
+service:
+  public:
+    enabled: true
+    type: ClusterIP
+    port: 4444
+    name: http
+    annotations:
+    labels: { }
+  admin:
+    enabled: true
+    isDirectAccess: false
+    type: ClusterIP
+    port: 4445
+    name: http
+    annotations:
+    labels: { }
+  sidecar:
+    enabled: false
+    name: sidecar
+    port: 4455
+  tokenHook:
+    enabled: false
+    port: 4475
+    
+ingress:
+  className: "ingress"
+  annotations:
+  public:
+    enabled: true
+    tls:
+      - hosts:
+    hosts:
+      - host:
+        paths:
+          - path: /
+            pathType: Prefix
+  admin:
+    enabled: false
+  sidecar:
+    tls:
+      - hosts:
+    hosts:
+      - host:
+        paths:
+        - path: /admin/clients
+          pathType: Prefix
+        - path: /oauth2/introspect
+          pathType: Prefix
+        - path: /
+          pathType: ImplementationSpecific
+job:
+  janitor:
+    schedule: "0 2 * * *"
+    labels:
+  jwk:
+    enabled: false
+
+global:
+  imagePullSecrets:
+  - name: secret-name

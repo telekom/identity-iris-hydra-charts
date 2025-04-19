@@ -1,0 +1,51 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- if .Values.component.hydra.autoMigrate }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "iris.fullname" . }}-automigrate
+  {{- if .Release.Namespace }}
+  namespace: {{ .Release.Namespace }}
+  {{- end }}
+  labels:
+{{ include "iris.labels" . | indent 4 }}
+    {{- with .Values.deployment.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    helm.sh/hook-weight: "1"
+    helm.sh/hook: "pre-install, pre-upgrade"
+    helm.sh/hook-delete-policy: "before-hook-creation,hook-succeeded"
+spec:
+  template:
+    spec:
+    {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      securityContext:
+        {{- toYaml .Values.deployment.securityContext.pod | nindent 8 }}
+      containers:
+      - name: {{ .Release.Name }}-automigrate
+        image: "{{ include "imageRef" .Values.component.hydra.image }}"
+        imagePullPolicy: {{ .Values.component.hydra.image.pullPolicy }}
+        command: ["hydra"]
+        args: ["migrate", "sql", "-e", "--yes"]
+        env:
+          - name: DSN
+            value: {{ .Values.component.hydra.config.dsn }}
+        securityContext:
+          {{- toYaml .Values.deployment.securityContext.container | nindent 10 }}
+        {{- if .Values.deployment.extraVolumeMounts }}
+        volumeMounts:
+{{ toYaml .Values.deployment.extraVolumeMounts | indent 10 }}
+         {{- end }}
+      restartPolicy: Never
+      {{- if .Values.deployment.extraVolumes }}
+      volumes:
+{{ toYaml .Values.deployment.extraVolumes | indent 8 }}
+      {{- end }}
+  backoffLimit: 2
+{{- end }}

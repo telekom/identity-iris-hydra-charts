@@ -1,0 +1,8 @@
+# SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+#
+# SPDX-License-Identifier: Apache-2.0
+
+include:
+  - project: dhei/teams/galatea/products/iris-hydra/cicd
+    file: iris-hydra-charts.gitlab-ci.yml
+    ref: main

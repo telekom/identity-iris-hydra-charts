@@ -1,0 +1,60 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- if or .Values.ingress.public.enabled .Values.demo }}
+{{- $fullName := include "iris.fullname" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}-public
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+              {{- range $realmName, $realm := $.Values.realm }}
+      rewrite ^/auth/realms/{{ $realmName }}/protocol/openid-connect/token$ /oauth2/token break;
+              {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.public.tls }}
+  tls:
+    {{- range .Values.ingress.public.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range $host := .Values.ingress.public.hosts }}
+    - host: {{ $host.host | quote }}
+      http:
+        paths:
+          {{- range $realmName, $realm := $.Values.realm }}
+          - path: "/auth/realms/{{ $realmName }}/protocol/openid-connect/token"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $fullName }}-public-{{ $realmName }}
+                port:
+                  name: http-public
+          - path: "/auth/realms/{{ $realmName }}/(.well-known/.*)"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: {{ $fullName }}-public-{{ $realmName }}
+                port:
+                  name: http-public
+            backend:
+              service:
+                name: {{ $fullName }}-public-{{ $realmName }}
+                port:
+                  name: http-public
+ {{- end }}
+    {{- end }}
+{{- end }}

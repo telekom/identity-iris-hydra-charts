@@ -1,0 +1,16 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- if .Values.deployment.pdb.enabled -}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "iris.fullname" . }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "iris.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }} 
+  minAvailable: {{ .Values.deployment.pdb.minAvailable }}
+{{- end -}}

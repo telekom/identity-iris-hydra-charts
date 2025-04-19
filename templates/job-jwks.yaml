@@ -1,0 +1,87 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- if and .Values.job.jwk.enabled (gt (int .Values.replicaCount) 0) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "iris.fullname" . }}-jwks
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+          {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.deployment.securityContext.pod | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}-create-jwks
+          securityContext:
+            {{- toYaml .Values.deployment.securityContext.container | nindent 12 }}
+          image: "{{ include "imageRef" .Values.component.hydra.image }}"
+          env:
+            {{- if .Values.component.sidecar.enabled }}
+            - name: HYDRA_HYDRA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-admin
+                  key: HYDRA_ADMIN_USERNAME
+            - name: HYDRA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-admin
+                  key: HYDRA_ADMIN_PASSWORD
+            {{- end }}
+          command: [ "/bin/sh" ]
+          args:
+            - "-c"
+            - |
+              set -e
+              for realmName in {{ range $realmName, $realm := .Values.realm }}{{ $realmName }} {{ end }}; do
+                echo "==========================================="
+                echo "Create ES256 keys in $realmName realm"
+                HYDRA_ADMIN_SERVICE_PATH=http://{{ include "iris.fullname" . }}-admin-${realmName}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.admin.port }}
+
+                {{- if .Values.component.sidecar.enabled }}
+                BASIC_AUTH_HEADER="Authorization: Basic $(echo -n $HYDRA_HYDRA_USERNAME:$HYDRA_ADMIN_PASSWORD | base64)"
+                {{- end }}
+
+                ACCESS_TOKEN_JWK=$(hydra get jwk hydra.jwt.access-token --endpoint $HYDRA_ADMIN_SERVICE_PATH {{- if .Values.component.sidecar.enabled }} -H "$BASIC_AUTH_HEADER" {{- end }} 2>&1 || true)
+
+                echo "Checking for existing ES256 access token key (hydra.jwt.access-token)..."
+                if echo "$ACCESS_TOKEN_JWK" | grep -q '"error": "Not Found"' || ! echo "$ACCESS_TOKEN_JWK" | grep -q "ES256"; then
+                  echo "Creating a new ES256 access token key (hydra.jwt.access-token)..."
+                  hydra create jwk hydra.jwt.access-token --alg ES256 --use sig --endpoint $HYDRA_ADMIN_SERVICE_PATH {{- if .Values.component.sidecar.enabled }} -H "$BASIC_AUTH_HEADER" {{- end }} || exit 1
+                elif echo "$ACCESS_TOKEN_JWK" | grep -q "ES256"; then
+                  echo "ES256 key for access token already exists, skipping creation."
+                else
+                  echo "Unexpected error or response: $ACCESS_TOKEN_JWK"
+                  exit 1
+                fi
+
+                ID_TOKEN_JWK=$(hydra get jwk hydra.openid.id-token --endpoint $HYDRA_ADMIN_SERVICE_PATH {{- if .Values.component.sidecar.enabled }} -H "$BASIC_AUTH_HEADER" {{- end }} 2>&1 || true)
+
+                if echo "$ID_TOKEN_JWK" | grep -q '"error": "Not Found"' || ! echo "$ID_TOKEN_JWK" | grep -q "ES256"; then
+                  echo "Creating new ES256 ID token key (hydra.openid.id-token)..."
+                  hydra create jwk hydra.openid.id-token --alg ES256 --use sig --endpoint $HYDRA_ADMIN_SERVICE_PATH {{- if .Values.component.sidecar.enabled }} -H "$BASIC_AUTH_HEADER" {{- end }} || exit 1
+                elif echo "$ID_TOKEN_JWK" | grep -q "ES256"; then
+                  echo "ES256 key for ID token already exists, skipping creation."
+                else
+                  echo "Unexpected error or response: $ID_TOKEN_JWK"
+                  exit 1
+                fi
+
+                echo "Fetching updated access token keys (hydra.jwt.access-token)..."
+                hydra get jwk hydra.jwt.access-token --endpoint $HYDRA_ADMIN_SERVICE_PATH {{- if .Values.component.sidecar.enabled }} -H "$BASIC_AUTH_HEADER" {{- end }} || exit 1
+
+                echo "Fetching updated ID token keys (hydra.openid.id-token)..."
+                hydra get jwk hydra.openid.id-token --endpoint $HYDRA_ADMIN_SERVICE_PATH {{- if .Values.component.sidecar.enabled }} -H "$BASIC_AUTH_HEADER" {{- end }} || exit 1
+              done
+      restartPolicy: Never
+{{- end }}
