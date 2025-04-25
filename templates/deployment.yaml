@@ -71,7 +71,7 @@ spec:
           volumeMounts:
             - name: {{ include "iris.name" . }}-config-volume
               mountPath: /etc/config
-              readOnly: "true"
+              readOnly: true
             {{- if .Values.deployment.extraVolumeMounts }}
 {{ toYaml .Values.deployment.extraVolumeMounts | indent 12 }}
             {{- end }}
@@ -165,7 +165,7 @@ spec:
                   key: HYDRA_ADMIN_PASSWORD
           ports:
             - name: http-sidecar
-              containerPort: {{ .Values.service.sidecar.port | quote }}
+              containerPort: {{ .Values.service.sidecar.port }}
               protocol:  TCP
           livenessProbe:
             httpGet:
@@ -208,7 +208,7 @@ spec:
               value: {{ .Values.component.hydra.customClaims.originStargate }}
           ports:
             - name: http-token-hook
-              containerPort: {{ .Values.service.tokenHook.port | quote }}
+              containerPort: {{ .Values.service.tokenHook.port }}
               protocol: TCP
           imagePullPolicy: {{ .Values.component.tokenHook.image.pullPolicy}}
         {{- end }}

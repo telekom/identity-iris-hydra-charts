@@ -74,8 +74,7 @@ component:
           allow_termination_from:
           - 127.0.0.1/32
       secrets:
-        system:
-        - "SECRET"
+        system: "SECRET"
       strategies:
         access_token: jwt
       ttl:
