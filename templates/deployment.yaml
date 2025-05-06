@@ -194,7 +194,7 @@ spec:
             - name: cache-volume
               mountPath: /tmp
         {{- end }}
-        {{- if and .Values.service.tokenHook (hasKey .Values.service.tokenHook "enabled") }}
+        {{- if .Values.service.tokenHook.enabled }}
         - name: {{ .Release.Name }}-tokenhook
           securityContext:
             {{- toYaml .Values.deployment.securityContext.container | nindent 12 }}
