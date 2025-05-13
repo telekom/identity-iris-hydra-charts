@@ -11,3 +11,5 @@ metadata:
 data:
   "config.yaml": |
 {{ include "iris.configmap" . | nindent 4 }}
+  "jwks-create.sh": |
+{{ tpl (.Files.Get "scripts/jwks-create.sh") . | indent 4 }}
