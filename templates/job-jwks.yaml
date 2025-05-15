@@ -5,6 +5,7 @@
 {{- range $realmName, $realm := .Values.realm }}
 {{- if or (not (hasKey $realm "replicaCount")) (gt (int $realm.replicaCount) 0) }}
 {{- with $ }}
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
