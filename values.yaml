@@ -84,15 +84,15 @@ component:
       oauth2:
         token_hook:
           url: "http://localhost:4475"
-      hashers:
-        bcrypt:
-          cost: 4
-      session:
-        encrypt_at_rest: true
-      allowed_top_level_claims:
-        - "azp"
-        - "originStargate"
-        - "originZone"
+        hashers:
+          bcrypt:
+            cost: 4
+        session:
+          encrypt_at_rest: true
+        allowed_top_level_claims:
+          - "azp"
+          - "originStargate"
+          - "originZone"
     tracing:
       enabled: false
       provider: zipkin
