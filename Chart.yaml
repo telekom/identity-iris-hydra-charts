@@ -3,7 +3,7 @@ appVersion: "2.3.0"
 name: iris-hydra
 description: A Helm chart for Iris-Hydra
 type: application
-version: 1.0.1
+version: 1.0.2
 keywords:
   - hydra
   - oauth2

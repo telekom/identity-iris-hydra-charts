@@ -2,6 +2,11 @@
 
 ## Versions
 
+## [1.0.2]
+### Changed
+- Initial ingress configuration
+- Support for keycloak-like URLs
+
 ## [1.0.1]
 ### Changed
 - Configured K8s Jobs to generate JWKs with the ES256 algorithm 
