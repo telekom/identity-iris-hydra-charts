@@ -202,10 +202,14 @@ spec:
           env:
             - name: TOKEN_HOOK_PORT
               value: {{ .Values.service.tokenHook.port | quote }}
-            - name: CLAIM_ORIGIN_ZONE
-              value: {{ .Values.component.hydra.customClaims.originZone }}
-            - name: CLAIM_ORIGIN_STARGATE
-              value: {{ .Values.component.hydra.customClaims.originStargate }}
+            - name: CLAIM_SET_ORIGIN_ZONE
+              value: {{ .Values.component.tokenHook.config.customClaims.originZone }}
+            - name: CLAIM_SET_ORIGIN_STARGATE
+              value: {{ .Values.component.tokenHook.config.customClaims.originStargate }}
+            - name: CLAIM_ADD_AZP
+              value: "true"
+            - name: DEBUG
+              value: {{ .Values.component.tokenHook.config.debug | quote }}
           ports:
             - name: http-token-hook
               containerPort: {{ .Values.service.tokenHook.port }}

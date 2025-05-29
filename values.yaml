@@ -93,15 +93,13 @@ component:
           - "azp"
           - "originStargate"
           - "originZone"
+        mirror_top_level_claims: false
     tracing:
       enabled: false
       provider: zipkin
       samplingRatio: 0.1
       spanUrl: https://zipkin.dev
       url: http://localhost:4445/admin
-    customClaims:
-      originStargate: https://stargate.dev.url
-      originZone: zone
   tokenHook:
     enabled: false
     image:
@@ -109,7 +107,10 @@ component:
       pullPolicy:
       tag:
     config: 
-      url: https://hydra-hook.dev
+      customClaims:
+        originStargate: https://stargate.url
+        originZone: zone
+      debug: false
   sidecar:
     enabled: false
     image:
