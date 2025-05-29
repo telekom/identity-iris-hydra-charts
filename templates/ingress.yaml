@@ -1,0 +1,75 @@
+{{/* SPDX-FileCopyrightText: 2025 Deutsche Telekom AG
+
+ SPDX-License-Identifier: Apache-2.0*/}}
+{{- $fullName := include "iris.fullname" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "iris.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+    {{- if $.Values.ingress.keycloakUrls }}
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      {{- range $realmName, $realm := $.Values.realm }}
+      rewrite ^/auth/realms/{{ $realmName }}/protocol/openid-connect/certs$ /.well-known/jwks.json break;
+      rewrite ^/auth/realms/{{ $realmName }}/protocol/openid-connect/revoke$ /oauth2/revoke break;
+      rewrite ^/auth/realms/{{ $realmName }}/protocol/openid-connect/token$ /oauth2/token break;
+      {{- end }}
+    {{- end }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+      - {{ .Values.ingress.host | quote }}
+      secretName: {{ .secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- range $realmName, $realm := $.Values.realm }}
+          - path: "/auth/realms/{{ $realmName }}/(.*)"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: iris-hydra-public-{{ $realmName }}
+                port:
+                  name: http
+          - path: "/auth/realms/{{ $realmName }}/(admin/.*)"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: iris-hydra-admin-{{ $realmName }}
+                port:
+                  name: http
+          {{ if $.Values.ingress.keycloakUrls }}
+          - path: "/auth/realms/{{ $realmName }}/protocol/openid-connect/token"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: iris-hydra-public-{{ $realmName }}
+                port:
+                  name: http
+          - path: "/auth/realms/{{ $realmName }}/protocol/openid-connect/certs"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: iris-hydra-public-{{ $realmName }}
+                port:
+                  name: http
+          - path: "/auth/realms/{{ $realmName }}/protocol/openid-connect/revoke"
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: iris-hydra-public-{{ $realmName }}
+                port:
+                  name: http
+          {{- end }}
+          {{- end }}

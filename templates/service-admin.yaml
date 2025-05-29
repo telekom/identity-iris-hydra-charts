@@ -21,17 +21,10 @@ metadata:
 spec:
   type: {{ .Values.service.admin.type }}
   ports:
-    {{- if .Values.service.admin.isDirectAccess }}
     - port: {{ .Values.service.admin.port }}
       targetPort: http-admin
       protocol: TCP
       name: {{ .Values.service.admin.name }}
-    {{- else }}
-    - port: {{ .Values.service.admin.port }}
-      targetPort: http-sidecar
-      protocol: TCP
-      name: {{ .Values.service.sidecar.name }}
-    {{- end }}
   selector:
     app.kubernetes.io/name: {{ include "iris.name" . }}
     app.kubernetes.io/instance: {{ .Release.Name }}
