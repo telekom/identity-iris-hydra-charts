@@ -132,7 +132,7 @@ spec:
               value: {{ .Release.Name }}-hydra-{{ .Release.Namespace }}
             {{- end }}
             - name: URLS_SELF_ISSUER
-              value: {{ .Values.component.hydra.config.urls.self.issuer | quote }}
+              value: https://{{ .Values.ingress.host }}/auth/realms/{{ $realmName }}
             - name: GOGC
               value: "150"
           resources:

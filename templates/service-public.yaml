@@ -22,7 +22,7 @@ spec:
   type: {{ .Values.service.public.type }}
   ports:
     - port: {{ .Values.service.public.port }}
-      name: {{ .Values.service.public.name }}-hydra
+      name: {{ .Values.service.public.name }}
       protocol: TCP
       targetPort: http-public
   selector:

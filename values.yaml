@@ -191,31 +191,13 @@ service:
     port: 4475
     
 ingress:
-  className: "ingress"
+  host: hydra.dev
+  tls: false
+  admin: false
+  public: false
+  className: nginx
+  keycloakUrls: false #if true then the ingress has additional rules for keycloak-like urls
   annotations:
-  public:
-    enabled: true
-    tls:
-      - hosts:
-    hosts:
-      - host:
-        paths:
-          - path: /
-            pathType: Prefix
-  admin:
-    enabled: false
-  sidecar:
-    tls:
-      - hosts:
-    hosts:
-      - host:
-        paths:
-        - path: /admin/clients
-          pathType: Prefix
-        - path: /oauth2/introspect
-          pathType: Prefix
-        - path: /
-          pathType: ImplementationSpecific
 job:
   janitor:
     schedule: "0 2 * * *"
