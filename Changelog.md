@@ -2,6 +2,10 @@
 
 ## Versions
 
+## [1.0.3]
+### Changed
+- Support for token-hook configuration
+
 ## [1.0.2]
 ### Changed
 - Initial ingress configuration
